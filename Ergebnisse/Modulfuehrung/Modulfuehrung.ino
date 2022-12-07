@@ -12,7 +12,17 @@ float secondsForRotation; // Time the solar panel needs to rotate from all the w
 
 bool bLPressed = false;
 bool bRPressed = false;
+int autoTurn = true; // 1 = autoturn engaged
 
+int loopbegin = 0;
+
+int dLenS = 864; // 86400 = 1 day
+int rTimeS = 48;
+int sTimeS = dLenS/4;
+int intervals = 8;
+int intervalTimeS = rTimeS/intervals;
+float opsFactor = (float)rTimeS/(float)sTimeS;
+int modS = intervalTimeS/opsFactor;
 void setup() 
 {
 
@@ -27,11 +37,62 @@ void setup()
     pinMode(turnLbutton, INPUT_PULLUP);
     pinMode(turnRbutton, INPUT_PULLUP);
     Calibrate();
+    loopbegin = millis();
 }
 
 void loop() 
 {
-      if(!digitalRead(leftSideHitS) && !digitalRead(turnLbutton) && !bLPressed)
+    if(( millis() - loopbegin <= 500 || ((millis()/1000) % modS >= -1 && (millis()/1000) % modS <= 1)) && (!digitalRead(rightSideHitS)) && autoTurn)
+    {
+        delay(50); // debounce
+        if(!digitalRead(rightSideHitS))
+        {
+            digitalWrite(turnR, HIGH);
+            int startR = millis();
+            Serial.println("Autorotating...");
+            while(((millis() - startR)/1000) < intervalTimeS)
+            {
+                if(digitalRead(rightSideHitS))
+                {
+                    delay(50); // debounce
+                    if(digitalRead(rightSideHitS))
+                    {
+                        autoTurn = false;
+                        digitalWrite(turnR, LOW); // disables auto turn when hit
+                        Serial.println("Autorotation cancelled (sensor hit)");
+                        return;
+                    }
+                }
+            }
+            digitalWrite(turnR, LOW);
+            Serial.println("Autorotation finished!");
+        }
+    }
+    if((millis()/1000) % (dLenS-50) == 0)
+    {
+        digitalWrite(turnL, HIGH);
+        Serial.println("Resetting autorotation...");
+        Serial.println((millis()/1000) % (dLenS-50));
+        while(true)
+        {
+            if(digitalRead(leftSideHitS))
+            {
+                delay(50);
+                if(digitalRead(leftSideHitS))
+                {
+                    digitalWrite(turnL, LOW); // turns fully left 50 seconds before 24 hours are over to give it time
+                }
+            }
+            if((millis()/1000 % dLenS) == 0)
+            {
+                autoTurn = true;
+                Serial.println("Autorotation reset!");
+                break;
+            }
+        }
+
+    }
+    if(!digitalRead(leftSideHitS) && !digitalRead(turnLbutton) && !bLPressed)
     {
         delay(50);
         if(!digitalRead(turnLbutton))
@@ -72,11 +133,6 @@ void loop()
             Serial.println("End R");
         }
     }
-}
-
-int HourToOpTime(int Hour)
-{
-    return 0;
 }
 
     // --- Knopfbetrieb: ---
